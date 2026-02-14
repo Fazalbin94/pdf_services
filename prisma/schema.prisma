@@ -1,0 +1,416 @@
+generator client {
+  provider = "prisma-client-js"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+ schemas   = ["pdfs"]
+}
+
+model PdfTemplate {
+  id              String                 @id @default(uuid()) @db.Uuid
+  userId          String                 @map("user_id") @db.Uuid
+  organizationId  String?                @map("organization_id") @db.Uuid
+  name            String                 @db.VarChar(100)
+  title           String                 @db.VarChar(200)
+  description     String?
+  category        String?                @db.VarChar(50)
+  tags            String[]
+  config          Json
+  variables       Json?
+  defaultData     Json?
+  validationRules Json?                  @map("validation_rules")
+  pageSize        PageSize               @default(A4) @map("page_size")
+  orientation     Orientation            @default(PORTRAIT)
+  margins         Json?
+  fonts           Json?
+  styles          Json?
+  backgroundType  BackgroundType         @default(NONE) @map("background_type")
+  backgroundUrl   String?                @map("background_url")
+  backgroundColor String?                @map("background_color") @db.VarChar(20)
+  opacity         Float?                 @default(1.0)
+  headerContent   Json?                  @map("header_content")
+  footerContent   Json?                  @map("footer_content")
+  letterheadId    String?                @map("letterhead_id") @db.Uuid
+  version         String                 @default("1.0.0") @db.VarChar(20)
+  isActive        Boolean                @default(true) @map("is_active")
+  isPublic        Boolean                @default(false) @map("is_public")
+  isSystem        Boolean                @default(false) @map("is_system")
+  thumbnailUrl    String?                @map("thumbnail_url")
+  estimatedPages  Int?                   @map("estimated_pages")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  publishedAt     DateTime?              @map("published_at")
+  deletedAt       DateTime?              @map("deleted_at")
+  documents       PdfDocument[]
+  generationJobs  PdfGenerationJob[]
+  accessLogs      PdfTemplateAccessLog[]
+  templateStats   PdfTemplateStats?
+  letterhead      Letterhead?            @relation(fields: [letterheadId], references: [id])
+
+  @@unique([userId, name])
+  @@unique([organizationId, name])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([category])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([userId, category])
+  @@index([organizationId, category])
+  @@index([isActive, isPublic])
+  @@index([letterheadId])
+  @@map("pdf_templates")
+  @@schema("pdfs")
+}
+
+model PdfTemplateStats {
+  id              String      @id @default(uuid()) @db.Uuid
+  templateId      String      @unique @map("template_id") @db.Uuid
+  viewCount       Int         @default(0) @map("view_count")
+  generationCount Int         @default(0) @map("generation_count")
+  previewCount    Int         @default(0) @map("preview_count")
+  downloadCount   Int         @default(0) @map("download_count")
+  lastViewedAt    DateTime?   @map("last_viewed_at")
+  lastGeneratedAt DateTime?   @map("last_generated_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  template        PdfTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("pdf_template_stats")
+  @@schema("pdfs")
+}
+
+model PdfTemplateAccessLog {
+  id         String       @id @default(uuid()) @db.Uuid
+  templateId String       @map("template_id") @db.Uuid
+  userId     String?      @map("user_id") @db.Uuid
+  action     AccessAction
+  ipAddress  String?      @map("ip_address") @db.VarChar(45)
+  userAgent  String?      @map("user_agent")
+  metadata   Json?
+  createdAt  DateTime     @default(now()) @map("created_at")
+  template   PdfTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([templateId, action])
+  @@map("pdf_template_access_logs")
+  @@schema("pdfs")
+}
+
+model PdfDocument {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  templateId                String                 @map("template_id") @db.Uuid
+  fileName                  String                 @map("file_name") @db.VarChar(255)
+  fileUrl                   String                 @map("file_url")
+  filePath                  String?                @map("file_path")
+  fileSize                  Int                    @map("file_size")
+  fileHash                  String?                @map("file_hash") @db.VarChar(64)
+  mimeType                  String                 @default("application/pdf") @map("mime_type") @db.VarChar(100)
+  pageCount                 Int                    @default(1) @map("page_count")
+  data                      Json
+  variables                 Json?
+  metadata                  Json?
+  status                    DocumentStatus         @default(GENERATED)
+  isPreview                 Boolean                @default(false) @map("is_preview")
+  expiresAt                 DateTime?              @map("expires_at")
+  errorMessage              String?                @map("error_message")
+  generationTime            Int?                   @map("generation_time")
+  fileSizeBeforeCompression Int?                   @map("file_size_before_compression")
+  compressionRatio          Float?                 @map("compression_ratio")
+  generatedBy               String?                @map("generated_by") @db.Uuid
+  ipAddress                 String?                @map("ip_address") @db.VarChar(45)
+  userAgent                 String?                @map("user_agent")
+  referrer                  String?
+  createdAt                 DateTime               @default(now()) @map("created_at")
+  updatedAt                 DateTime               @updatedAt @map("updated_at")
+  accessedAt                DateTime?              @map("accessed_at")
+  deletedAt                 DateTime?              @map("deleted_at")
+  accessLogs                PdfDocumentAccessLog[]
+  template                  PdfTemplate            @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  generationJobs            PdfGenerationJob[]
+
+  @@index([templateId])
+  @@index([generatedBy])
+  @@index([status])
+  @@index([isPreview])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@index([deletedAt])
+  @@index([templateId, status])
+  @@index([generatedBy, createdAt])
+  @@index([isPreview, expiresAt])
+  @@map("pdf_documents")
+  @@schema("pdfs")
+}
+
+model PdfDocumentAccessLog {
+  id           String               @id @default(uuid()) @db.Uuid
+  documentId   String               @map("document_id") @db.Uuid
+  userId       String?              @map("user_id") @db.Uuid
+  action       DocumentAccessAction
+  ipAddress    String?              @map("ip_address") @db.VarChar(45)
+  userAgent    String?              @map("user_agent")
+  downloadTime Int?                 @map("download_time")
+  metadata     Json?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  document     PdfDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([documentId, action])
+  @@map("pdf_document_access_logs")
+  @@schema("pdfs")
+}
+
+ 
+model PdfGenerationJob {
+  id           String       @id @default(uuid()) @db.Uuid
+  templateId   String       @map("template_id") @db.Uuid
+
+  userId       String?      @map("user_id") @db.Uuid
+  organizationId String?    @map("organization_id") @db.Uuid
+
+  data         Json
+  options      Json?
+  callbackUrl  String?      @map("callback_url")
+  status       JobStatus    @default(PENDING)
+  priority     Int          @default(0)
+  attempts     Int          @default(0)
+  maxAttempts  Int          @default(3) @map("max_attempts")
+  documentId   String?      @map("document_id") @db.Uuid
+  errorMessage String?      @map("error_message")
+  errorStack   String?      @map("error_stack")
+  scheduledAt  DateTime?    @map("scheduled_at")
+  startedAt    DateTime?    @map("started_at")
+  completedAt  DateTime?    @map("completed_at")
+  timeoutAt    DateTime?    @map("timeout_at")
+  queueName    String?      @map("queue_name") @db.VarChar(50)
+  workerId     String?      @map("worker_id") @db.VarChar(100)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  document     PdfDocument? @relation(fields: [documentId], references: [id])
+  template     PdfTemplate  @relation(fields: [templateId], references: [id])
+
+  @@index([templateId])
+   @@index([userId])
+  @@index([organizationId]) 
+  @@index([status])
+  @@index([priority])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@index([status, priority])
+  @@index([status, scheduledAt])
+  @@map("pdf_generation_jobs")
+  @@schema("pdfs")
+}
+
+ 
+ 
+ model Letterhead {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  organizationId  String?      @map("organization_id") @db.Uuid
+
+  name            String       @db.VarChar(100)
+  description     String?
+  category        String?      @db.VarChar(50)
+
+  paperSize       PageSize     @default(A4) @map("paper_size")
+  orientation     Orientation  @default(PORTRAIT)
+  margins         Json?        @default("{\"top\":57.6,\"right\":18,\"bottom\":36,\"left\":18}")
+  safeZones       Json?        @map("safe_zones")
+  brandColors     String[]     @map("brand_colors")
+  primaryFont     String?      @map("primary_font")
+  secondaryFont   String?      @map("secondary_font")
+  filePath        String?       @map("file_path")
+  thumbnailPath   String?      @map("thumbnail_path")
+  fileSize        Int          @map("file_size")
+  fileType        LetterheadType @default(IMAGE) @map("file_type")
+  mimeType        String       @map("mime_type") @db.VarChar(100)
+  width           Int?
+  height          Int?
+  dpi             Int?         @default(300)
+  dimensionsUnit  DimensionsUnit @default(POINTS) @map("dimensions_unit")
+  backgroundColor String?      @map("background_color") @db.VarChar(20)
+  opacity         Float?       @default(1.0)
+  marginSafeZone  Json?        @map("margin_safe_zone")
+  colorProfile    ColorProfile @default(RGB) @map("color_profile")
+  hasBleedArea    Boolean      @default(false) @map("has_bleed_area")
+  bleedAreaSize   Int?         @map("bleed_area_size")
+  isActive        Boolean      @default(true) @map("is_active")
+  isPublic        Boolean      @default(false) @map("is_public")
+  isSystem        Boolean      @default(false) @map("is_system")
+  usageCount      Int          @default(0) @map("usage_count")
+  lastUsedAt      DateTime?    @map("last_used_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  publishedAt     DateTime?    @map("published_at")
+  deletedAt       DateTime?    @map("deleted_at")
+  version         String       @default("1.0.0") @db.VarChar(20)
+  parentId        String?      @map("parent_id") @db.Uuid
+
+  templates       PdfTemplate[]
+  parent          Letterhead?  @relation("LetterheadVersions", fields: [parentId], references: [id])
+  versions        Letterhead[] @relation("LetterheadVersions")
+  contentZones    LetterheadContentZone[] @relation("LetterheadZones")
+
+  @@unique([userId, name])
+  @@unique([organizationId, name])
+  @@unique([filePath], map: "unique_letterheads_file_path") 
+  @@index([userId])
+  @@index([organizationId])
+  @@index([category])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([filePath])
+  @@index([lastUsedAt])
+  @@map("letterheads")
+  @@schema("pdfs")
+}
+
+model LetterheadContentZone {
+  id          String   @id @default(uuid()) @db.Uuid
+  letterheadId String  @map("letterhead_id") @db.Uuid
+  zoneType    ZoneType
+  position    Json
+  content     Json?
+  styles      Json?
+  isActive    Boolean  @default(true) @map("is_active")
+  orderIndex  Int      @default(0) @map("order_index")
+
+  letterhead  Letterhead @relation("LetterheadZones", fields: [letterheadId], references: [id], onDelete: Cascade)
+
+  @@index([letterheadId])
+  @@index([letterheadId, zoneType])
+  @@map("letterhead_content_zones")
+  @@schema("pdfs")
+}
+
+
+ 
+enum PageSize {
+  A0
+  A1
+  A2
+  A3
+  A4
+  A5
+  LETTER
+  LEGAL
+  TABLOID
+  CUSTOM
+  @@schema("pdfs")
+}
+
+enum Orientation {
+  PORTRAIT
+  LANDSCAPE
+  @@schema("pdfs")
+}
+
+enum BackgroundType {
+  NONE
+  COLOR
+  IMAGE
+  PDF
+  LETTERHEAD
+@@schema("pdfs")
+}
+
+enum LetterheadType {
+  IMAGE
+  PDF
+  SVG
+  @@schema("pdfs")
+}
+
+enum DocumentStatus {
+  PENDING
+  GENERATING
+  GENERATED
+  FAILED
+  EXPIRED
+  DELETED
+  @@schema("pdfs")
+}
+
+enum AccessAction {
+  VIEW
+  GENERATE
+  DOWNLOAD
+  SHARE
+  EDIT
+  DELETE
+  PREVIEW
+  @@schema("pdfs")
+}
+
+enum DocumentAccessAction {
+  DOWNLOAD
+  VIEW
+  PRINT
+  SHARE
+  EMBED
+  @@schema("pdfs")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMEOUT
+  @@schema("pdfs")
+}
+
+ 
+enum ColorProfile {
+  RGB
+  CMYK
+  GRAYSCALE
+  @@schema("pdfs")
+}
+
+enum DimensionsUnit {
+  PIXELS
+  POINTS
+  MILLIMETERS
+  INCHES
+  @@schema("pdfs")
+}
+
+enum ZoneType {
+  HEADER
+  FOOTER
+  SIDEBAR_LEFT
+  SIDEBAR_RIGHT
+  WATERMARK
+  BACKGROUND
+  @@schema("pdfs")
+}
+
+ 
+
+ 
+
+ 
+
+ 
+ 
+
+ 
+
+ 
